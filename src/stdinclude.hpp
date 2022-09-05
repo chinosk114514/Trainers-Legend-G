@@ -27,6 +27,7 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/ostreamwrapper.h>
 #include <rapidjson/writer.h>
+#include <nlohmann/json.hpp>
 
 #include "il2cpp/il2cpp_symbols.hpp"
 #include "local/local.hpp"

@@ -1475,7 +1475,30 @@ namespace
 		string outPath = std::format("MsgPack/{}R.msgpack", currentTime());
 		writeFile(outPath, dst, ret);
 		printf("Save response to %s\n", outPath.c_str());
+
+		try {
+			web::http::client::http_client client(L"http://127.0.0.1:32588");
 			
+			std::string uma_data(dst, ret);
+			auto json_data = nlohmann::json::from_msgpack(uma_data);
+			string resp_data = json_data.dump();
+			std::wstring wd(resp_data.begin(), resp_data.end());
+			auto data = client.request(web::http::methods::POST, L"/convert/response", wd).get();
+			if (data.status_code() != 200) {
+				return ret;
+			}
+
+			string resp_str = data.extract_utf8string().get();
+			vector<uint8_t> new_buffer = nlohmann::json::to_msgpack(nlohmann::json::parse(resp_str));
+			char* new_dst = reinterpret_cast<char*>(&new_buffer[0]);
+			memset(dst, 0, dstCapacity);
+			memcpy(dst, new_dst, new_buffer.size());
+			return new_buffer.size();
+		}
+		catch (exception& e) {
+			printf("err: %s\n", e.what());
+		}
+
 		return ret;
 	}
 

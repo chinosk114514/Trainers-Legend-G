@@ -3,6 +3,7 @@ cpprestsdk/2.10.18
 minizip/1.2.11
 zlib/1.2.12
 msgpack/3.3.0
+nlohmann_json/3.10.5
 
 [generators]
 premake

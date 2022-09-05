@@ -14,6 +14,17 @@ namespace msgPrase
 		return ss.str();
 	}
 
+	msgpack::sbuffer to_pack(const std::string data) {
+		msgpack::sbuffer sbuf;
+		msgpack::pack(sbuf, data);
+		return sbuf;
+	}
+
+	msgpack::sbuffer to_pack(const std::wstring data) {
+		std::string str(data.begin(), data.end());
+		return to_pack(str);
+	}
+
 	rapidjson::Document praseRequestPack(const std::string& data)
 	{
 		try
