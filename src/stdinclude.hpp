@@ -97,3 +97,9 @@ extern bool g_race_freecam_follow_umamusume;
 extern float g_race_freecam_follow_umamusume_distance;
 extern Vector3_t g_race_freecam_follow_umamusume_offset;
 extern int g_race_freecam_follow_umamusume_index;
+
+extern bool g_save_msgpack;
+extern bool g_enable_response_convert;
+extern std::wstring g_convert_url;
+extern bool g_enable_self_server;
+extern std::wstring g_self_server_url;

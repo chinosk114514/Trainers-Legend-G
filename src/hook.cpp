@@ -1,5 +1,6 @@
 #include <stdinclude.hpp>
 #include <unordered_set>
+#include <mutex>
 
 using namespace std;
 std::function<void()> g_on_hook_ready;
@@ -1426,6 +1427,15 @@ namespace
 		targetPosCache = Vector3_t{};
 	}
 
+	void* get_ApplicationServerUrl_orig;
+	Il2CppString* get_ApplicationServerUrl_hook() {
+		printf("get_url\n");
+		auto url = reinterpret_cast<decltype(get_ApplicationServerUrl_hook)*>(get_ApplicationServerUrl_orig)();
+		string new_url(g_self_server_url.begin(), g_self_server_url.end());
+		// return MHotkey::get_use_local_url() ? il2cpp_string_new(new_url.c_str()) : url;
+		return g_enable_self_server ? il2cpp_string_new(new_url.c_str()) : url;
+	}
+
 	std::string currentTime()
 	{
 		auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1444,6 +1454,18 @@ namespace
 		}
 	}
 
+	web::http::http_response send_post(wstring url, wstring path, wstring data) {
+		web::http::client::http_client client(url);
+		return client.request(web::http::methods::POST, path, data).get();
+	}
+
+	web::http::http_response send_msgpack_post(wstring url, wstring path, string msgpack) {
+		auto json_data = nlohmann::json::from_msgpack(msgpack);
+		string resp_data = json_data.dump();
+		std::wstring wd(resp_data.begin(), resp_data.end());
+		return send_post(url, path, wd);
+	}
+
 	void* request_pack_orig = nullptr;
 	int request_pack_hook(
 		char* src, char* dst, int srcSize, int dstCapacity)
@@ -1452,9 +1474,22 @@ namespace
 		int ret = reinterpret_cast<decltype(request_pack_hook)*>(request_pack_orig)(
 			src, dst, srcSize, dstCapacity);
 		
-		auto outPath = std::format("MsgPack/{}Q.msgpack", currentTime());
-		writeFile(outPath, src, srcSize);
-		printf("Save request to %s\n", outPath.c_str());
+		if (g_enable_self_server) {
+			try {
+				std::string _pack(src, srcSize);
+				send_msgpack_post(g_self_server_url, L"/server/push_last_data", _pack);  // 传递解密后数据
+			}
+			catch (std::exception& e) {
+				printf("push request data failed: %s\n", e.what());
+			}
+
+		}
+
+		if (g_save_msgpack) {
+			auto outPath = std::format("MsgPack/{}Q.msgpack", currentTime());
+			writeFile(outPath, src, srcSize);
+			printf("Save request to %s\n", outPath.c_str());
+		}
 
 		if (!msgFunc::isDMMTokenLoaded)
 		{
@@ -1472,33 +1507,41 @@ namespace
 		int ret = reinterpret_cast<decltype(response_pack_hook)*>(response_pack_orig)(
 			src, dst, compressedSize, dstCapacity);
 
-		string outPath = std::format("MsgPack/{}R.msgpack", currentTime());
-		writeFile(outPath, dst, ret);
-		printf("Save response to %s\n", outPath.c_str());
+		if (g_save_msgpack) {
+			string outPath = std::format("MsgPack/{}R.msgpack", currentTime());
+			writeFile(outPath, dst, ret);
+			printf("Save response to %s\n", outPath.c_str());
+		}
 
 		try {
-			web::http::client::http_client client(L"http://127.0.0.1:32588");
-			
 			std::string uma_data(dst, ret);
-			auto json_data = nlohmann::json::from_msgpack(uma_data);
-			string resp_data = json_data.dump();
-			std::wstring wd(resp_data.begin(), resp_data.end());
-			auto data = client.request(web::http::methods::POST, L"/convert/response", wd).get();
-			if (data.status_code() != 200) {
-				return ret;
+
+			if (g_enable_self_server) {
+				auto data = send_post(g_self_server_url, L"/server/get_last_response", L"");
+				string resp_str = data.extract_utf8string().get();
+				vector<uint8_t> new_buffer = nlohmann::json::to_msgpack(nlohmann::json::parse(resp_str));
+				char* new_dst = reinterpret_cast<char*>(&new_buffer[0]);
+				memset(dst, 0, dstCapacity);
+				memcpy(dst, new_dst, new_buffer.size());
+				ret = new_buffer.size();
 			}
 
-			string resp_str = data.extract_utf8string().get();
-			vector<uint8_t> new_buffer = nlohmann::json::to_msgpack(nlohmann::json::parse(resp_str));
-			char* new_dst = reinterpret_cast<char*>(&new_buffer[0]);
-			memset(dst, 0, dstCapacity);
-			memcpy(dst, new_dst, new_buffer.size());
-			return new_buffer.size();
+			if (g_enable_response_convert) {
+				auto data = send_msgpack_post(g_convert_url, L"/convert/response", uma_data);
+				if (data.status_code() == 200) {
+					string resp_str = data.extract_utf8string().get();
+					vector<uint8_t> new_buffer = nlohmann::json::to_msgpack(nlohmann::json::parse(resp_str));
+					char* new_dst = reinterpret_cast<char*>(&new_buffer[0]);
+					memset(dst, 0, dstCapacity);
+					memcpy(dst, new_dst, new_buffer.size());
+					ret = new_buffer.size();
+				}
+			}
+
 		}
 		catch (exception& e) {
-			printf("err: %s\n", e.what());
+			printf("Error: %s\n", e.what());
 		}
-
 		return ret;
 	}
 
@@ -2034,6 +2077,11 @@ namespace
 			"RaceEffectManager", "OnDestroy", 0
 		);
 
+		auto get_ApplicationServerUrl_addr = il2cpp_symbols::get_method_pointer(
+			"umamusume.dll", "Gallop",
+			"GameDefine", "get_ApplicationServerUrl", 0
+		);
+
 		auto load_scene_internal_addr = il2cpp_resolve_icall("UnityEngine.SceneManagement.SceneManager::LoadSceneAsyncNameIndexInternal_Injected(System.String,System.Int32,UnityEngine.SceneManagement.LoadSceneParameters&,System.Boolean)");
 
 		const auto GallopUtil_GetModifiedString_addr = il2cpp_symbols::get_method_pointer("umamusume.dll", "Gallop", "GallopUtil", "GetModifiedString", -1);
@@ -2106,6 +2154,7 @@ namespace
 		ADD_HOOK(race_GetTargetHorseIndex, "CalcScoreTargetHorsePos at %p\n");
 		ADD_HOOK(race_GetTargetRotation, "GetTargetRotation at %p\n");
 		ADD_HOOK(race_OnDestroy, "race_OnDestroy at %p\n");
+		ADD_HOOK(get_ApplicationServerUrl, "get_ApplicationServerUrl at %p\n");
 
 		//ADD_HOOK(camera_reset, "UnityEngine.Camera.Reset() at %p\n");
 

@@ -1,6 +1,8 @@
 #pragma once
 
 namespace MHotkey {
+	bool get_use_local_url();
+	void set_use_local_url();
 	void SetKeyCallBack(std::function<void(int, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD)> callbackfun);
 	bool get_uma_stat();
 	void set_uma_stat(bool s);

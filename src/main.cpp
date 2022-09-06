@@ -79,12 +79,11 @@ bool autoChangeLineBreakMode = false;
 int start_width = -1;
 int start_height = -1;
 
-
-// #pragma comment(lib, "cpprest_2_10_18.lib")
-// #pragma comment(lib, "bcrypt.lib")
-// #pragma comment(lib, "crypt32.lib")
-// #pragma comment(lib, "winhttp.lib")
-// #pragma comment(lib, "httpapi.lib")
+bool g_save_msgpack = true;
+bool g_enable_response_convert = false;
+std::wstring g_convert_url = L"http://127.0.0.1:32588";
+bool g_enable_self_server = false;
+std::wstring g_self_server_url = L"http://127.0.0.1:32589";
 
 using namespace web;
 using namespace http;
@@ -535,6 +534,21 @@ namespace
 					}
 				}
 			}
+
+			if (document.HasMember("modify_pack")) {
+				g_save_msgpack = document["modify_pack"]["save_msgpack"].GetBool();
+
+				g_enable_response_convert = document["modify_pack"]["enable_response_convert"].GetBool();
+				std::string convert_url = document["modify_pack"]["convert_url"].GetString();
+				std::wstring c_url(convert_url.begin(), convert_url.end());
+				g_convert_url = c_url;
+
+				g_enable_self_server = document["modify_pack"]["enable_self_server"].GetBool();
+				std::string serv_url = document["modify_pack"]["self_server_url"].GetString();
+				std::wstring s_url(serv_url.begin(), serv_url.end());
+				g_self_server_url = s_url;
+			}
+
 			UmaCamera::initCameraSettings();
 
 			// Looks like not working for now

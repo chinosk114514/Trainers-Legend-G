@@ -19,9 +19,19 @@ namespace MHotkey{
         DWORD pluginPID = -1;
         int tlgport = 43215;
 
+        bool use_local_url = false;
+
         std::function<void(int, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD)> mKeyBoardCallBack = nullptr;
     }
 
+    bool get_use_local_url() {
+        return use_local_url;
+    }
+    void set_use_local_url() {
+        use_local_url = !use_local_url;
+        printf("use_local_url: %s\n", use_local_url ? "true" : "false");
+    }
+    
     void SetKeyCallBack(std::function<void(int, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD)> callbackfun) {
         mKeyBoardCallBack = callbackfun;
     }
@@ -144,6 +154,10 @@ namespace MHotkey{
                 if (CTRL_key != 0 && key == hotk)
                 {
                     fopenExternalPlugin(tlgport);
+                }
+
+                if (key == 'L') {
+                    set_use_local_url();
                 }
 
                 // printf("key = %c\n", key);
