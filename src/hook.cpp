@@ -1460,7 +1460,14 @@ namespace
 	}
 
 	web::http::http_response send_msgpack_post(wstring url, wstring path, string msgpack) {
-		auto json_data = nlohmann::json::from_msgpack(msgpack);
+		auto json_data = nlohmann::json::from_msgpack(msgpack, false);
+		string resp_data = json_data.dump();
+		std::wstring wd(resp_data.begin(), resp_data.end());
+		return send_post(url, path, wd);
+	}
+
+	web::http::http_response send_msgpack_post(wstring url, wstring path, string_view msgpack) {
+		auto json_data = nlohmann::json::from_msgpack(msgpack, false);
 		string resp_data = json_data.dump();
 		std::wstring wd(resp_data.begin(), resp_data.end());
 		return send_post(url, path, wd);
@@ -1476,8 +1483,9 @@ namespace
 		
 		if (g_enable_self_server) {
 			try {
-				std::string _pack(src, srcSize);
-				send_msgpack_post(g_self_server_url, L"/server/push_last_data", _pack);  // 传递解密后数据
+				const std::string _pack(src, srcSize);
+				auto pack = msgPrase::convertRequestPack(_pack);
+				send_msgpack_post(g_self_server_url, L"/server/push_last_data", pack);  // 传递解密后数据
 			}
 			catch (std::exception& e) {
 				printf("push request data failed: %s\n", e.what());
@@ -1491,12 +1499,13 @@ namespace
 			printf("Save request to %s\n", outPath.c_str());
 		}
 
+		/*
 		if (!msgFunc::isDMMTokenLoaded)
 		{
 			string buffer(src, srcSize);
 			msgFunc::initDMMToken(msgPrase::praseRequestPack(buffer));
 		}
-
+		*/
 		return ret;
 	}
 
@@ -1506,7 +1515,6 @@ namespace
 	{
 		int ret = reinterpret_cast<decltype(response_pack_hook)*>(response_pack_orig)(
 			src, dst, compressedSize, dstCapacity);
-
 		if (g_save_msgpack) {
 			string outPath = std::format("MsgPack/{}R.msgpack", currentTime());
 			writeFile(outPath, dst, ret);
@@ -1519,11 +1527,29 @@ namespace
 			if (g_enable_self_server) {
 				auto data = send_post(g_self_server_url, L"/server/get_last_response", L"");
 				string resp_str = data.extract_utf8string().get();
-				vector<uint8_t> new_buffer = nlohmann::json::to_msgpack(nlohmann::json::parse(resp_str));
-				char* new_dst = reinterpret_cast<char*>(&new_buffer[0]);
-				memset(dst, 0, dstCapacity);
-				memcpy(dst, new_dst, new_buffer.size());
-				ret = new_buffer.size();
+				try {
+					vector<uint8_t> new_buffer = nlohmann::json::to_msgpack(nlohmann::json::parse(resp_str));
+					char* new_dst = reinterpret_cast<char*>(&new_buffer[0]);
+
+					printf("dstC: %d, old_size: %d, new_size: %d\n", dstCapacity, ret, new_buffer.size());
+
+					memset(dst, 0, dstCapacity);
+					// memcpy(dst, new_dst, new_buffer.size());
+					memcpy_s(dst, dstCapacity, new_dst, new_buffer.size());
+
+					ret = new_buffer.size();
+				}
+				catch (exception& e) {
+					printf("get exception: %s, try unparse......\n", e.what());
+					char* new_dst = (char*)resp_str.c_str();
+
+					printf("dstC: %d, old_size: %d, new_size: %d\n", dstCapacity, ret, resp_str.size());
+
+					memset(dst, 0, dstCapacity);
+					memcpy(dst, new_dst, resp_str.size());
+					ret = resp_str.size();
+				}
+
 			}
 
 			if (g_enable_response_convert) {

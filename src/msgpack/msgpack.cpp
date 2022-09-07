@@ -25,19 +25,23 @@ namespace msgPrase
 		return to_pack(str);
 	}
 
+	std::string_view convertRequestPack(const std::string& data) {
+		const uint32_t offset = *(uint32_t*)data.c_str();
+		if (offset != 166)
+		{
+			std::cout << "Unknown offset detected: " << offset << "!\n";
+		}
+		const auto v = std::string_view(data);
+		return v.substr(4 + offset);
+	}
+
 	rapidjson::Document praseRequestPack(const std::string& data)
 	{
 		try
 		{
-			const uint32_t offset = *(uint32_t*)data.c_str();
-			if (offset != 166)
-			{
-				std::cout << "Unknown offset detected: " << offset << "!\n";
-			}
-
-			const auto v = std::string_view(data);
+			auto v = convertRequestPack(data);
 			rapidjson::Document document;
-			const auto pack_data = convert_pack(v.substr(4 + offset));
+			const auto pack_data = convert_pack(v);
 
 			std::regex re("\"viewer_id\":(.*?),\"");
 			const auto rep_result = std::regex_replace(pack_data, re, "\"");

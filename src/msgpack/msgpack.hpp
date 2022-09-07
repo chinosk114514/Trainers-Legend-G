@@ -10,6 +10,7 @@
 
 namespace msgPrase
 {
+	std::string_view convertRequestPack(const std::string& data);
 	rapidjson::Document praseRequestPack(const std::string& data);
 	std::string convert_pack(const std::string_view data);
 	msgpack::sbuffer to_pack(const std::string data);
