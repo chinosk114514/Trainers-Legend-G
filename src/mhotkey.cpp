@@ -8,6 +8,7 @@
 #include <format>
 #include <functional>
 
+
 namespace MHotkey{
     namespace {
         HHOOK hKeyboardHook;
@@ -79,6 +80,47 @@ namespace MHotkey{
         }).detach();
     }
 
+    void refresh_tray() {
+        HWND shell_tray_wnd_handle = FindWindow("Shell_TrayWnd", NULL);
+        HWND tray_notify_wnd_handle = FindWindowEx(shell_tray_wnd_handle, 0, "TrayNotifyWnd", NULL);
+        HWND sys_paper_handle = FindWindowEx(tray_notify_wnd_handle, 0, "SysPager", NULL);
+        HWND tool_bar_handle = NULL;
+        if (sys_paper_handle != NULL) {
+            tool_bar_handle = FindWindowEx(sys_paper_handle, 0, "ToolbarWindow32", NULL);
+        }
+        else {
+            tool_bar_handle = FindWindowEx(tray_notify_wnd_handle, 0, "ToolbarWindow32", NULL);
+        }
+        if (tool_bar_handle == NULL) return;
+        RECT rect;
+        GetWindowRect(tool_bar_handle, &rect);
+        int width = rect.right - rect.left;
+        int height = rect.bottom - rect.top;
+        int y = height / 2;
+        for (int x = 1; x < width; x += 2) {
+            for (int y = 1; y < height; y += 2) {
+                SendMessage(tool_bar_handle, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            }
+        }
+    }
+
+    void refresh_hide_tray() {
+        HWND overflow_handle = FindWindow("NotifyIconOverflowWindow", NULL);
+        if (overflow_handle == NULL) return;
+        HWND tb_handle = FindWindowEx(overflow_handle, 0, "ToolbarWindow32", NULL);
+        if (tb_handle == NULL) return;
+        RECT rect;
+        GetWindowRect(tb_handle, &rect);
+        int width = rect.right - rect.left;
+        int height = rect.bottom - rect.top;
+
+        for (int x = 1; x < width; x += 2) {
+            for (int y = 1; y < height; y += 2) {
+                SendMessage(tb_handle, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            }
+        }
+    }
+
     void closeExternalPlugin() {
         if (check_file_exist("dontcloseext.lock")) {
             remove("dontcloseext.lock");
@@ -92,6 +134,8 @@ namespace MHotkey{
             PROCESS_INFORMATION pi{};
             CreateProcessA(NULL, commandLine, NULL, NULL, FALSE, 0, NULL, NULL, &startupInfo, &pi);
             printf("kill: %s\n", commandLine);
+            refresh_tray();
+            refresh_hide_tray();
             CloseHandle(pi.hThread);
             CloseHandle(pi.hProcess);
         }
